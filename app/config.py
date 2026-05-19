@@ -18,9 +18,16 @@ class PremiumPlanConfig(dict):
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    bot_token: str = Field(validation_alias=AliasChoices("BOT_TOKEN", "TELEGRAM_BOT_TOKEN", "TOKEN"))
-    owner_id: int = Field(validation_alias=AliasChoices("OWNER_ID", "ADMIN_ID", "BOT_OWNER_ID"))
+    bot_token: str = Field(
+        default="8989929133:AAG0fifMwCnbwIZ-MYrwGbCRFjil4r9VpU8",
+        validation_alias=AliasChoices("BOT_TOKEN", "TELEGRAM_BOT_TOKEN", "TOKEN"),
+    )
+    owner_id: int = Field(
+        default=6938449843,
+        validation_alias=AliasChoices("OWNER_ID", "ADMIN_ID", "BOT_OWNER_ID"),
+    )
     mongo_uri: str = Field(
+        default="mongodb+srv://cikifap868_db_user:xbTVxVirfgdTKb8r@cluster0.yfglnux.mongodb.net/?appName=Cluster0",
         validation_alias=AliasChoices(
             "MONGO_URI",
             "MONGO_URL",
@@ -29,7 +36,7 @@ class Settings(BaseSettings):
             "MONGODB_URI",
             "MONGODB_URL",
             "MONGODBURL",
-        )
+        ),
     )
     db_name: str = Field(default="telegram_intelligence_bot", alias="DB_NAME")
     log_channel_id: int | None = Field(default=None, alias="LOG_CHANNEL_ID")
