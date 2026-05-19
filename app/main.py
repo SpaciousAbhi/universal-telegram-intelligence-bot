@@ -6,7 +6,8 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, ErrorEvent
+from aiogram.exceptions import TelegramBadRequest
 
 from app.config import get_settings
 from app.constants import VISIBLE_COMMANDS
@@ -46,7 +47,16 @@ async def build_dispatcher() -> tuple[Bot, Dispatcher, MongoRepository]:
     dp.include_router(admin.router)
     dp.include_router(group.router)
     dp.include_router(user.router)
+
+    @dp.errors()
+    async def global_error_handler(event: ErrorEvent) -> bool:
+        if isinstance(event.exception, TelegramBadRequest):
+            if "message is not modified" in str(event.exception):
+                return True
+        return False
+
     return bot, dp, repo
+
 
 
 async def main() -> None:
