@@ -116,6 +116,7 @@ async def test_saved_reports_are_premium_storage_records() -> None:
 @pytest.mark.asyncio
 async def test_force_sub_only_returns_missing_channels() -> None:
     repo = MemoryRepository()
+    await repo.set_force_sub_settings({"enabled": True, "check_mode": "all", "admin_bypass": True}, updated_by=0)
     repo.collections["force_sub_channels"].extend(
         [
             {"chat_id": -1, "title": "Joined", "active": True},

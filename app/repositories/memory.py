@@ -97,7 +97,35 @@ class MemoryRepository:
         return next((u for u in self.collections["users"] if u["telegram_id"] == user_id), None)
 
     async def get_force_sub_settings(self) -> dict[str, Any]:
-        return {"enabled": True, "check_mode": "all", "admin_bypass": True}
+        defaults = {
+            "enabled": False,
+            "message_template": (
+                "🔒 <b>Access Locked</b>\n\n"
+                "Hello {first_name}, to use this bot, please join all required channels below.\n\n"
+                "After joining, tap the verification button to unlock access."
+            ),
+            "button_text": "✅ I Joined / Verify",
+            "media_file_id": None,
+            "media_type": None,
+            "admin_bypass": True,
+            "bypass_users": [],
+            "check_mode": "all",
+            "recheck_mode": "every_time",
+            "recheck_ttl_seconds": 86400,
+            "leave_behavior": "block_again",
+        }
+        row = next((s for s in self.collections["settings"] if s.get("key") == "force_sub_global_settings"), None)
+        if row and "value" in row:
+            return {**defaults, **row["value"]}
+        return defaults
+
+    async def set_force_sub_settings(self, settings: dict[str, Any], updated_by: int | None = None) -> None:
+        existing = next((s for s in self.collections["settings"] if s.get("key") == "force_sub_global_settings"), None)
+        payload = {"key": "force_sub_global_settings", "value": settings, "updated_by": updated_by}
+        if existing:
+            existing.update(payload)
+        else:
+            self.collections["settings"].append(payload)
 
     async def update_user_force_sub_status(self, user_id: int, verified: bool, bypass: bool = False) -> None:
         user = await self.upsert_user({"telegram_id": user_id})
@@ -116,5 +144,25 @@ class MemoryRepository:
             existing.update(channel)
         else:
             self.collections["force_sub_channels"].append(channel)
+
+    async def remove_force_sub_channel(self, chat_id: int | str) -> None:
+        try:
+            chat_id = int(chat_id)
+        except ValueError:
+            pass
+        self.collections["force_sub_channels"] = [
+            c for c in self.collections["force_sub_channels"] if c["chat_id"] != chat_id
+        ]
+
+    async def get_force_sub_channels(self) -> list[dict[str, Any]]:
+        return self.collections["force_sub_channels"]
+
+    async def get_force_sub_channel(self, chat_id: int | str) -> dict[str, Any] | None:
+        try:
+            chat_id = int(chat_id)
+        except ValueError:
+            pass
+        return next((c for c in self.collections["force_sub_channels"] if c["chat_id"] == chat_id), None)
+
 
 

@@ -130,9 +130,10 @@ class Renderer:
     def admin_section(self, section: str) -> str:
         return (
             f"<b>{escape(section)}</b>\n\n"
-            "This control center is wired for owner-only access. Use the panel actions to inspect status, export data, "
-            "manage premium, force-sub, bans, broadcasts, payments, logs, errors, and settings."
+            "This admin module is currently a placeholder or under construction. "
+            "Please use the active control panel options like Settings or Force Subscribe to configure the bot."
         )
+
 
     def force_sub_prompt(
         self,
