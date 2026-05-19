@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from aiogram import F, Router
+import logging
+from aiogram import F, Router, Bot
 from aiogram.filters import CommandStart
-from aiogram.types import BufferedInputFile, CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Message, ChatJoinRequest, ChatMemberUpdated
 
 from app.services.errors import ErrorService
 from app.services.force_sub import ForceSubscriptionService
@@ -22,19 +23,121 @@ from app.ui.keyboards import (
 from app.ui.renderer import Renderer
 from app.utils import pretty_json
 
+logger = logging.getLogger(__name__)
 router = Router(name="user")
 
 
-async def _blocked_or_gated(message: Message, repo, renderer: Renderer, force_sub: ForceSubscriptionService) -> bool:
-    user_id = message.from_user.id if message.from_user else 0
-    if await repo.is_banned(user_id):
-        await message.answer("<b>🚫 Access denied</b>\n\nYour account is banned from using this bot.")
-        return True
-    missing = await force_sub.gate_or_none(message.bot, repo, user_id)
-    if missing:
-        await message.answer(renderer.force_sub_prompt(missing), reply_markup=force_sub_keyboard(missing))
-        return True
-    return False
+@router.callback_query(F.data == "fs:recheck")
+async def cb_recheck_force_sub(
+    callback: CallbackQuery,
+    repo,
+    bot: Bot,
+    force_sub: ForceSubscriptionService,
+    renderer: Renderer,
+    settings,
+) -> None:
+    user_id = callback.from_user.id
+    user_doc = await repo.get_user(user_id)
+    owner_id = getattr(settings, "owner_id", 0)
+    
+    result = await force_sub.check_user_access(bot, repo, user_id, user_doc, owner_id)
+    if result is None:
+        await callback.answer("✅ Verification successful! Access unlocked.", show_alert=True)
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+            
+        # Re-fetch user doc in case it was updated during check
+        user_doc = await repo.get_user(user_id)
+        if user_doc:
+            referrer_id = user_doc.get("referred_by_pending")
+            if referrer_id:
+                # Reward referrer now that access is verified
+                ref_service = ReferralService(settings.referral_reward_days)
+                premium_service = PremiumService(settings.premium_plans, settings.referral_reward_days)
+                await ref_service.register(repo, referrer_id, user_id, premium_service)
+                await repo.db.users.update_one(
+                    {"telegram_id": user_id},
+                    {"$unset": {"referred_by_pending": ""}}
+                )
+
+        await callback.message.answer(
+            "<b>🎉 Welcome!</b>\n\nYour access has been verified. You can now use the bot.",
+            reply_markup=main_menu_keyboard()
+        )
+    else:
+        missing = result["missing"]
+        gs = result["settings"]
+        missing_titles = ", ".join(m["title"] for m in missing)
+        await callback.answer(f"❌ You still need to join: {missing_titles}", show_alert=True)
+        
+        required_count = len(await repo.active_force_sub_channels())
+        missing_count = len(missing)
+        joined_count = required_count - missing_count
+        bot_info = await bot.get_me()
+        
+        text = renderer.force_sub_prompt(
+            missing=missing,
+            user=callback.from_user,
+            bot_name=bot_info.full_name,
+            bot_username=bot_info.username,
+            required_count=required_count,
+            joined_count=joined_count,
+            missing_count=missing_count,
+            settings=gs,
+        )
+        
+        reply_markup = force_sub_keyboard(missing, gs)
+        try:
+            await callback.message.edit_text(text, reply_markup=reply_markup)
+        except Exception:
+            pass
+
+
+@router.chat_join_request()
+async def handle_chat_join_request(
+    event: ChatJoinRequest,
+    repo,
+    bot: Bot,
+) -> None:
+    user_id = event.from_user.id
+    chat_id = event.chat.id
+    title = event.chat.title
+    
+    logger.info("User %s requested to join %s (%s)", user_id, title, chat_id)
+    await repo.record_join_request(user_id, chat_id, "pending")
+    await repo.log_force_sub_attempt(user_id, chat_id, "pending_request", f"Join request pending for: {title}")
+    
+    ch = await repo.get_force_sub_channel(chat_id)
+    if ch and ch.get("auto_approve"):
+        try:
+            await bot.approve_chat_join_request(chat_id, user_id)
+            await repo.record_join_request(user_id, chat_id, "approved")
+            await repo.log("join_request_auto_approved", {"user_id": user_id, "chat_id": chat_id})
+        except Exception as exc:
+            logger.error("Failed to auto-approve join request for chat %s, user %s: %s", chat_id, user_id, exc)
+
+
+@router.chat_member()
+async def handle_chat_member_update(
+    event: ChatMemberUpdated,
+    repo,
+) -> None:
+    chat_id = event.chat.id
+    ch = await repo.get_force_sub_channel(chat_id)
+    if not ch:
+        return
+        
+    user_id = event.from_user.id
+    new_state = event.new_chat_member.status
+    
+    if new_state in {"left", "kicked"}:
+        gs = await repo.get_force_sub_settings()
+        if gs.get("leave_behavior") == "block_again":
+            await repo.update_user_force_sub_status(user_id, verified=False)
+            await repo.log_force_sub_attempt(user_id, chat_id, "left", f"User left required chat: {event.chat.title}")
+            logger.info("User %s left required chat %s, access revoked.", user_id, event.chat.title)
 
 
 @router.message(CommandStart())
@@ -60,8 +163,7 @@ async def start(
     )
     referrer_id = referral_service.parse_start_payload(message.text)
     await referral_service.register(repo, referrer_id, message.from_user.id, premium_service)
-    if await _blocked_or_gated(message, repo, renderer, force_sub):
-        return
+
     report = report_engine.user_profile(message.from_user, user_doc)
     report_id = await repo.insert_report(report_engine.to_document(report), report.raw)
     report.report_id = report_id
@@ -84,8 +186,7 @@ async def analyze_private_message(
 ) -> None:
     if not message.from_user:
         return
-    if await _blocked_or_gated(message, repo, renderer, force_sub):
-        return
+
     try:
         user_doc = await repo.upsert_user({"telegram_id": message.from_user.id})
         report = report_engine.message_report(message)

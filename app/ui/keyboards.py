@@ -160,11 +160,16 @@ def admin_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=_rows([cb_button(text, data) for text, data in ADMIN_SECTIONS]))
 
 
-def force_sub_keyboard(channels: list[dict]) -> InlineKeyboardMarkup:
+def force_sub_keyboard(channels: list[dict], settings: dict | None = None) -> InlineKeyboardMarkup:
     rows = []
     for channel in channels:
         invite = channel.get("invite_link") or channel.get("public_link") or channel.get("url")
         if invite:
-            rows.append([url_button(f"Join {channel.get('title', channel.get('chat_id'))}", invite)])
-    rows.append([cb_button("🔄 Recheck", "fs:recheck")])
+            btn_text = channel.get("button_text") or f"Join {channel.get('title', channel.get('chat_id'))}"
+            rows.append([url_button(btn_text, invite)])
+    
+    verify_text = "✅ I Joined / Verify"
+    if settings and settings.get("button_text"):
+        verify_text = settings["button_text"]
+    rows.append([cb_button(verify_text, "fs:recheck")])
     return InlineKeyboardMarkup(inline_keyboard=rows)

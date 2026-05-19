@@ -134,13 +134,60 @@ class Renderer:
             "manage premium, force-sub, bans, broadcasts, payments, logs, errors, and settings."
         )
 
-    def force_sub_prompt(self, missing: list[dict[str, Any]]) -> str:
-        titles = "\n".join(f"• {escape(ch.get('title') or ch.get('chat_id'))}" for ch in missing)
-        return (
-            "<b>🔐 Join Required</b>\n\n"
-            "Join the required channels below to use the bot. Channels you already joined are not shown.\n\n"
-            f"{titles}"
+    def force_sub_prompt(
+        self,
+        missing: list[dict[str, Any]],
+        user: Any = None,
+        bot_name: str = "",
+        bot_username: str = "",
+        required_count: int = 0,
+        joined_count: int = 0,
+        missing_count: int = 0,
+        settings: dict[str, Any] | None = None
+    ) -> str:
+        if not settings:
+            titles = "\n".join(f"• {escape(ch.get('title') or str(ch.get('chat_id')))}" for ch in missing)
+            return (
+                "<b>🔐 Join Required</b>\n\n"
+                "Join the required channels below to use the bot. Channels you already joined are not shown.\n\n"
+                f"{titles}"
+            )
+            
+        template = settings.get("message_template") or (
+            "🔒 <b>Access Locked</b>\n\n"
+            "Hello {first_name}, to use this bot, please join all required channels below.\n\n"
+            "After joining, tap the verification button to unlock access."
         )
+        try:
+            first_name = escape(getattr(user, "first_name", "") or "") if user else "User"
+            last_name = escape(getattr(user, "last_name", "") or "") if user else ""
+            username = escape(getattr(user, "username", "") or "") if user else ""
+            user_id = str(getattr(user, "id", "")) if user else ""
+            
+            msg = template.format(
+                first_name=first_name,
+                last_name=last_name,
+                username=username,
+                user_id=user_id,
+                bot_name=escape(bot_name),
+                bot_username=escape(bot_username),
+                required_count=required_count,
+                joined_count=joined_count,
+                missing_count=missing_count
+            )
+        except Exception:
+            msg = (
+                "🔒 <b>Access Locked</b>\n\n"
+                f"Hello {escape(getattr(user, 'first_name', '') or 'User') if user else 'User'}, please join all required channels below to access the bot."
+            )
+            
+        pending_list = [ch for ch in missing if ch.get("status") == "pending_request"]
+        if pending_list:
+            msg += "\n\n⏳ <b>Pending Join Requests:</b>\n"
+            for ch in pending_list:
+                msg += f"• {escape(ch['title'])} (Request is pending approval)\n"
+                
+        return msg
 
     def friendly_error(self, code: str) -> str:
         return (

@@ -14,7 +14,7 @@ from app.repositories import MongoRepository
 from app.repositories.mongo import MongoStartupError
 from app.routers import admin, group, payments, user
 from app.services.errors import ErrorService
-from app.services.force_sub import ForceSubscriptionService
+from app.services.force_sub import ForceSubscriptionService, ForceSubMiddleware
 from app.services.premium import PremiumService
 from app.services.referrals import ReferralService
 from app.services.report_engine import ReportEngine
@@ -39,6 +39,9 @@ async def build_dispatcher() -> tuple[Bot, Dispatcher, MongoRepository]:
         errors=ErrorService(),
         runtime_settings=RuntimeSettingsService(),
     )
+    dp.message.outer_middleware(ForceSubMiddleware())
+    dp.callback_query.outer_middleware(ForceSubMiddleware())
+
     dp.include_router(payments.router)
     dp.include_router(admin.router)
     dp.include_router(group.router)

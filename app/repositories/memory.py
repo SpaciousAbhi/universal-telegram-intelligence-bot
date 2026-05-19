@@ -92,3 +92,29 @@ class MemoryRepository:
             existing.update(payload)
         else:
             self.collections["settings"].append(payload)
+
+    async def get_user(self, user_id: int) -> dict[str, Any] | None:
+        return next((u for u in self.collections["users"] if u["telegram_id"] == user_id), None)
+
+    async def get_force_sub_settings(self) -> dict[str, Any]:
+        return {"enabled": True, "check_mode": "all", "admin_bypass": True}
+
+    async def update_user_force_sub_status(self, user_id: int, verified: bool, bypass: bool = False) -> None:
+        user = await self.upsert_user({"telegram_id": user_id})
+        user["fs_verified"] = verified
+        user["fs_bypass"] = bypass
+
+    async def log_force_sub_attempt(self, user_id: int, chat_id: int, status: str, details: str = "") -> None:
+        self.collections["logs"].append({
+            "event": "force_sub_attempt",
+            "payload": {"user_id": user_id, "chat_id": chat_id, "status": status, "details": details}
+        })
+
+    async def add_force_sub_channel(self, channel: dict[str, Any]) -> None:
+        existing = next((c for c in self.collections["force_sub_channels"] if c["chat_id"] == channel["chat_id"]), None)
+        if existing:
+            existing.update(channel)
+        else:
+            self.collections["force_sub_channels"].append(channel)
+
+

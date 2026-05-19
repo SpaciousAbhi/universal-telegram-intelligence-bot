@@ -127,7 +127,9 @@ async def test_force_sub_only_returns_missing_channels() -> None:
         async def get_chat_member(self, chat_id, user_id):
             return type("Member", (), {"status": "member" if chat_id == -1 else "left"})()
 
-    missing = await ForceSubscriptionService().missing_channels(Bot(), repo, 123)
+    res = await ForceSubscriptionService().check_user_access(Bot(), repo, 123, None, 0)
+    assert res is not None
+    missing = res["missing"]
 
     assert [channel["title"] for channel in missing] == ["Missing"]
 
