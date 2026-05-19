@@ -211,17 +211,18 @@ async def fsub_add_prompt(callback: CallbackQuery, settings, state: FSMContext) 
     await state.set_state(AdminSettingsState.fsub_add)
     await callback.message.edit_text(
         "<b>➕ Add Force Subscribe Channel</b>\n\n"
-        "Send the channel/group details in one of these formats:\n\n"
-        "1. Just ID or Username:\n"
-        "<code>-1001234567890</code>\n\n"
-        "2. Detailed comma-separated format:\n"
+        "<b>Option 1 — Forward a message:</b>\n"
+        "Forward any message from the channel/group you want to add. The bot will auto-detect the chat ID and title.\n\n"
+        "<b>Option 2 — Send ID or Username:</b>\n"
+        "<code>-1001234567890</code> or <code>@mychannel</code>\n\n"
+        "<b>Option 3 — Detailed format (comma-separated):</b>\n"
         "<code>chat_id, invite_link, title, mode, button_text</code>\n\n"
         "Examples:\n"
-        "<code>-1001234567890, https://t.me/+xyz, My Channel, join_request, Join Channel</code>\n"
-        "<code>@mychannel, https://t.me/mychannel, My Public Channel, normal, Subscribe</code>\n\n"
-        "Send the message now, or send /cancel to cancel.",
+        "<code>-1001234567890, https://t.me/+xyz, My Channel, join_request, Join Channel</code>\n\n"
+        "Send now, or send /cancel to cancel.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[cb_button("❌ Cancel", "a:fsub")]])
     )
+
 
 
 @router.message(AdminSettingsState.fsub_add)
@@ -235,7 +236,48 @@ async def fsub_add_save(message: Message, settings, repo, state: FSMContext) -> 
         await state.clear()
         await message.answer("<b>❌ Action cancelled.</b>", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[cb_button("⬅️ Back", "a:fsub")]]))
         return
+
+    # Option 1: Forwarded message — auto-detect chat info
+    fwd_chat = None
+    if message.forward_from_chat:
+        fwd_chat = message.forward_from_chat
+    elif getattr(message, "forward_origin", None):
+        origin = message.forward_origin
+        if hasattr(origin, "chat"):
+            fwd_chat = origin.chat
+
+    if fwd_chat:
+        chat_id = fwd_chat.id
+        title = getattr(fwd_chat, "title", None) or getattr(fwd_chat, "full_name", None) or f"Chat {chat_id}"
+        username = getattr(fwd_chat, "username", None)
+        invite_link = f"https://t.me/{username}" if username else ""
         
+        await repo.add_force_sub_channel({
+            "chat_id": chat_id,
+            "invite_link": invite_link,
+            "title": title,
+            "mode": "normal",
+            "button_text": f"Join {title}",
+            "active": True
+        })
+        
+        await state.clear()
+        await message.answer(
+            "<b>✅ Channel Added from Forward!</b>\n\n"
+            f"<b>ID:</b> <code>{chat_id}</code>\n"
+            f"<b>Title:</b> {title}\n"
+            f"<b>Username:</b> {'@' + username if username else 'N/A'}\n"
+            f"<b>Link:</b> {invite_link or 'None'}\n"
+            f"<b>Mode:</b> normal",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[cb_button("⬅️ Back to Manager", "a:fsub")]])
+        )
+        return
+
+    # Option 2/3: Text input
+    if not text:
+        await message.answer("<b>Invalid input.</b> Forward a channel message, or send the chat ID/username. Send /cancel to cancel.")
+        return
+
     parts = [p.strip() for p in text.split(",")]
     if not parts or not parts[0]:
         await message.answer("<b>Invalid input.</b> Please try again or send /cancel.")
@@ -243,9 +285,9 @@ async def fsub_add_save(message: Message, settings, repo, state: FSMContext) -> 
         
     raw_chat_id = parts[0]
     try:
-        chat_id: int | str = int(raw_chat_id)
+        chat_id_val: int | str = int(raw_chat_id)
     except ValueError:
-        chat_id = raw_chat_id
+        chat_id_val = raw_chat_id
         
     invite_link = parts[1] if len(parts) > 1 else ""
     title = parts[2] if len(parts) > 2 else f"Channel {raw_chat_id}"
@@ -253,7 +295,7 @@ async def fsub_add_save(message: Message, settings, repo, state: FSMContext) -> 
     btn_text = parts[4] if len(parts) > 4 else f"Join {title}"
     
     await repo.add_force_sub_channel({
-        "chat_id": chat_id,
+        "chat_id": chat_id_val,
         "invite_link": invite_link,
         "title": title,
         "mode": mode,
@@ -264,13 +306,14 @@ async def fsub_add_save(message: Message, settings, repo, state: FSMContext) -> 
     await state.clear()
     await message.answer(
         "<b>✅ Channel Configured Successfully!</b>\n\n"
-        f"<b>ID:</b> <code>{chat_id}</code>\n"
+        f"<b>ID:</b> <code>{chat_id_val}</code>\n"
         f"<b>Title:</b> {title}\n"
         f"<b>Mode:</b> {mode}\n"
         f"<b>Btn Text:</b> {btn_text}\n"
         f"<b>Link:</b> {invite_link or 'None'}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[cb_button("⬅️ Back to Manager", "a:fsub")]])
     )
+
 
 
 @router.callback_query(F.data == "fsub:delete")

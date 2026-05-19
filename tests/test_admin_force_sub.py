@@ -36,6 +36,8 @@ async def test_fsub_add_save_correctly_parses_input() -> None:
     message = AsyncMock()
     message.from_user.id = 6938449843
     message.text = "-1001234567890, https://t.me/+xyz, My Channel, join_request, Join Channel"
+    message.forward_from_chat = None
+    message.forward_origin = None
     settings = NS(owner_id=6938449843)
     state = AsyncMock(spec=FSMContext)
 

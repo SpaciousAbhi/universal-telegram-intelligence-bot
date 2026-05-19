@@ -156,11 +156,20 @@ class ForceSubMiddleware(BaseMiddleware):
             is_private = event.message and event.message.chat.type == "private" if event.message else True
             user_id = event.from_user.id
             callback = event
-            if event.data == "fs:recheck":
+            # Always allow admin panel callbacks and force-sub recheck through
+            cb_data = event.data or ""
+            if cb_data == "fs:recheck" or cb_data.startswith("a:") or cb_data.startswith("fsub:") or cb_data.startswith("set:"):
                 return await handler(event, data)
                 
         if not is_private or not user_id:
             return await handler(event, data)
+
+        # Allow admin FSM state messages through (owner typing settings)
+        fsm_context = data.get("state")
+        if fsm_context:
+            current_state = await fsm_context.get_state()
+            if current_state and current_state.startswith("AdminSettingsState:"):
+                return await handler(event, data)
             
         repo = data.get("repo")
         bot = data.get("bot")
