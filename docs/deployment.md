@@ -72,3 +72,12 @@ heroku logs --tail -a <app>
 - Telegram Stars premium invoices use `XTR` and an empty provider token for digital services.
 - Payment history stores `telegram_payment_charge_id` for future support/refund workflows.
 - Errors are stored with an error code and traceback in MongoDB.
+
+## MongoDB Atlas Checklist
+
+If Heroku logs show `SSL handshake failed` or `ServerSelectionTimeoutError`:
+
+- In MongoDB Atlas, open `Network Access` and add `0.0.0.0/0` unless you use a paid static-egress Heroku add-on.
+- In Atlas `Database Access`, confirm the database user exists and has read/write access.
+- If the password contains `@`, `:`, `/`, `?`, `#`, `&`, or `%`, URL-encode it before putting it in `MONGO_URI`.
+- Use the Atlas driver connection string, normally starting with `mongodb+srv://`.

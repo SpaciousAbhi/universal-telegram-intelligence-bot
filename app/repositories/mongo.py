@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Iterable
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from bson import ObjectId
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo.errors import ConfigurationError, OperationFailure, ServerSelectionTimeoutError
 
 
 COLLECTIONS = [
@@ -25,13 +26,34 @@ COLLECTIONS = [
 ]
 
 
+class MongoStartupError(RuntimeError):
+    pass
+
+
 class MongoRepository:
     def __init__(self, uri: str, db_name: str) -> None:
-        self.client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=7000)
+        kwargs: dict[str, Any] = {
+            "serverSelectionTimeoutMS": 15000,
+            "connectTimeoutMS": 20000,
+            "socketTimeoutMS": 20000,
+            "appname": "universal-telegram-intelligence-bot",
+        }
+        if uri.startswith("mongodb+srv://"):
+            kwargs["tls"] = True
+        self.client = AsyncIOMotorClient(uri, **kwargs)
         self.db: AsyncIOMotorDatabase = self.client[db_name]
 
     async def ping(self) -> None:
-        await self.client.admin.command("ping")
+        try:
+            await self.client.admin.command("ping")
+        except (ServerSelectionTimeoutError, ConfigurationError, OperationFailure) as exc:
+            raise MongoStartupError(
+                "MongoDB connection failed. Check Heroku MONGO_URI/MONGO_DB_URL, Atlas Database Access credentials, "
+                "and Atlas Network Access. For Heroku without static outbound IPs, add 0.0.0.0/0 to Atlas Network "
+                "Access or use a static-egress add-on. If your Mongo password contains @, :, /, ?, #, &, or %, "
+                "URL-encode it in the connection string. Original error: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
 
     async def close(self) -> None:
         self.client.close()

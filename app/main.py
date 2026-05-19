@@ -11,6 +11,7 @@ from aiogram.types import BotCommand
 from app.config import get_settings
 from app.constants import VISIBLE_COMMANDS
 from app.repositories import MongoRepository
+from app.repositories.mongo import MongoStartupError
 from app.routers import admin, group, payments, user
 from app.services.errors import ErrorService
 from app.services.force_sub import ForceSubscriptionService
@@ -58,4 +59,8 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except MongoStartupError as exc:
+        logging.critical("%s", exc)
+        raise SystemExit(1)
