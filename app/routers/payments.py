@@ -62,10 +62,10 @@ async def successful_payment(message: Message, repo, premium_service: PremiumSer
 
 
 @router.message(Command("paysupport"))
-async def pay_support(message: Message, settings) -> None:
+async def pay_support(message: Message, settings, repo, runtime_settings) -> None:
+    support_url = await runtime_settings.support_url(repo, settings.support_url)
     await message.answer(
         "<b>Payment Support</b>\n\n"
         "For Telegram Stars payment issues, contact support with your payment date and Telegram payment charge ID if available.\n"
-        f"Support: {settings.support_url}"
+        f"Support: {support_url}"
     )
-

@@ -143,6 +143,17 @@ class MongoRepository:
     async def log_error(self, code: str, payload: dict[str, Any]) -> None:
         await self.db.errors.insert_one({"code": code, "payload": payload, "created_at": datetime.utcnow()})
 
+    async def get_setting(self, key: str, default: Any = None) -> Any:
+        row = await self.db.settings.find_one({"key": key})
+        return row.get("value") if row else default
+
+    async def set_setting(self, key: str, value: Any, updated_by: int | None = None) -> None:
+        await self.db.settings.update_one(
+            {"key": key},
+            {"$set": {"key": key, "value": value, "updated_by": updated_by, "updated_at": datetime.utcnow()}},
+            upsert=True,
+        )
+
     async def active_force_sub_channels(self) -> list[dict[str, Any]]:
         return [doc async for doc in self.db.force_sub_channels.find({"active": True})]
 

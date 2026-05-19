@@ -28,7 +28,15 @@ The bot is button-first and English-only. Users can open `/start`, send or forwa
 pip install -r requirements.txt
 ```
 
-3. Copy `.env.example` to `.env` and fill in real values.
+3. Copy `.env.example` to `.env` and fill in the three required values:
+
+```env
+BOT_TOKEN=your_bot_token
+OWNER_ID=your_numeric_telegram_id
+MONGO_URI=your_mongodb_atlas_uri
+```
+
+All other values have defaults. Support URL and log channel can be configured later from `/admin` -> `Settings`.
 4. Run:
 
 ```powershell
@@ -44,4 +52,3 @@ Reports and raw data are stored in MongoDB for bot operation, exports, admin dia
 ## Telegram Limits
 
 The bot never claims it can reveal hidden forwarded senders, private channels, deleted users, protected content, inaccessible permissions, or fields not provided by the Bot API. Unavailable fields are marked with a clear reason.
-

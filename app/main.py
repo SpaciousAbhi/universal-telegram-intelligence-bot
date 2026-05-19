@@ -17,6 +17,7 @@ from app.services.force_sub import ForceSubscriptionService
 from app.services.premium import PremiumService
 from app.services.referrals import ReferralService
 from app.services.report_engine import ReportEngine
+from app.services.settings import RuntimeSettingsService
 from app.ui.renderer import Renderer
 
 
@@ -35,6 +36,7 @@ async def build_dispatcher() -> tuple[Bot, Dispatcher, MongoRepository]:
         referral_service=ReferralService(settings.referral_reward_days),
         force_sub=ForceSubscriptionService(),
         errors=ErrorService(),
+        runtime_settings=RuntimeSettingsService(),
     )
     dp.include_router(payments.router)
     dp.include_router(admin.router)
@@ -57,4 +59,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

@@ -80,3 +80,15 @@ class MemoryRepository:
 
     async def log_error(self, code: str, payload: dict[str, Any]) -> None:
         self.collections["errors"].append({"code": code, "payload": payload})
+
+    async def get_setting(self, key: str, default: Any = None) -> Any:
+        row = next((s for s in self.collections["settings"] if s.get("key") == key), None)
+        return row.get("value") if row else default
+
+    async def set_setting(self, key: str, value: Any, updated_by: int | None = None) -> None:
+        existing = next((s for s in self.collections["settings"] if s.get("key") == key), None)
+        payload = {"key": key, "value": value, "updated_by": updated_by}
+        if existing:
+            existing.update(payload)
+        else:
+            self.collections["settings"].append(payload)

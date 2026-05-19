@@ -9,18 +9,29 @@
 
 ## Config Vars
 
-Set these in Heroku config:
+Set only these required values in Heroku config:
 
 - `BOT_TOKEN`
 - `OWNER_ID`
 - `MONGO_URI`
-- `DB_NAME`
-- `LOG_CHANNEL_ID`
-- `SUPPORT_URL`
-- `GROUP_COOLDOWN_SECONDS`
-- `DEFAULT_TIMEZONE`
-- `PREMIUM_PLANS_JSON`
-- `REFERRAL_REWARD_DAYS`
+
+`MONGO_URL`, `MONGODB_URI`, or `MONGODB_URL` also work if you prefer one of those names.
+
+Everything else has a code default:
+
+- `DB_NAME=telegram_intelligence_bot`
+- `SUPPORT_URL=https://t.me/support`
+- `GROUP_COOLDOWN_SECONDS=20`
+- `DEFAULT_TIMEZONE=UTC`
+- `PREMIUM_PLANS_JSON` with 30/90/365 day Stars plans
+- `REFERRAL_REWARD_DAYS=3`
+
+After the bot is running, open `/admin` → `Settings` to set:
+
+- Support URL
+- Log channel ID
+
+These admin settings are stored in MongoDB and do not require Heroku config changes.
 
 Do not commit real secrets.
 
@@ -52,7 +63,8 @@ heroku logs --tail -a <app>
 
 - MongoDB indexes are created on startup.
 - The bot registers only `/start` and `/admin` as visible commands.
+- The first deploy needs only `BOT_TOKEN`, `OWNER_ID`, and `MONGO_URI`.
+- Support URL and log channel can be managed from `/admin` → `Settings`.
 - Telegram Stars premium invoices use `XTR` and an empty provider token for digital services.
 - Payment history stores `telegram_payment_charge_id` for future support/refund workflows.
 - Errors are stored with an error code and traceback in MongoDB.
-

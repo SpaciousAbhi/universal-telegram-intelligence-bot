@@ -136,9 +136,10 @@ async def cb_help(callback: CallbackQuery, renderer: Renderer) -> None:
 
 
 @router.callback_query(F.data == "u:support")
-async def cb_support(callback: CallbackQuery, settings, renderer: Renderer) -> None:
+async def cb_support(callback: CallbackQuery, settings, repo, runtime_settings, renderer: Renderer) -> None:
     await callback.answer()
-    await callback.message.edit_text(renderer.support(), reply_markup=support_keyboard(settings.support_url))
+    support_url = await runtime_settings.support_url(repo, settings.support_url)
+    await callback.message.edit_text(renderer.support(), reply_markup=support_keyboard(support_url))
 
 
 @router.callback_query(F.data == "u:premium")
