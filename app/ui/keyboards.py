@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Any, Iterable
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -35,7 +35,7 @@ def url_button(text: str, url: str) -> InlineKeyboardButton:
 
 
 def copy_button(text: str, value: str, fallback: str) -> InlineKeyboardButton:
-    if CopyTextButton is not None:
+    if CopyTextButton is not None and 1 <= len(value) <= 256:
         return InlineKeyboardButton(text=text, copy_text=CopyTextButton(text=value))
     return cb_button(text, fallback)
 
@@ -46,40 +46,83 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
 
 def report_actions_keyboard(report: ReportContext, premium: bool = False) -> InlineKeyboardMarkup:
     report_id = report.report_id or "last"
-    rows = [
-        [cb_button("📋 Copy Menu", f"r:copy:{report_id}"), cb_button("💾 Save Report", f"r:save:{report_id}")],
-        [cb_button("📤 Export", f"r:export:{report_id}"), cb_button("🧾 Raw Data", f"r:raw:{report_id}")],
-        [cb_button("🔄 Analyze Another", "u:analyze"), cb_button("❓ Help", "u:help")],
-    ]
+    rows = _report_copy_rows(report, report_id)
+    rows.extend(
+        [
+            [cb_button("💾 Save Report", f"r:save:{report_id}"), cb_button("📤 Export", f"r:export:{report_id}")],
+            [cb_button("🧾 Raw Data", f"r:raw:{report_id}"), cb_button("🔄 Analyze Another", "u:analyze")],
+            [cb_button("❓ Help", "u:help"), cb_button("📋 More Copy", f"r:copy:{report_id}")],
+        ]
+    )
     if not premium:
-        rows.append([cb_button("⭐ Upgrade Premium", "u:premium")])
+        rows.append([cb_button("⭐ Premium", "u:premium")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _report_copy_rows(report: ReportContext, report_id: str) -> list[list[InlineKeyboardButton]]:
+    sections = [{"fields": [_field_to_dict(field) for field in section.fields]} for section in report.sections]
+    values = _copy_values_from_sections(sections)
+    priority = ["user_id", "chat_id", "message_id", "username", "file_id", "link"]
+    buttons: list[InlineKeyboardButton] = []
+    used: set[str] = set()
+    for key in priority:
+        item = next((value for value in values if value[0] == key and value[2] not in used), None)
+        if not item:
+            continue
+        copy_key, label, value = item
+        used.add(value)
+        if len(value) <= 256:
+            buttons.append(copy_button(f"📋 {label}", value, f"copy:{copy_key}:{report_id}"))
+        else:
+            buttons.append(cb_button(f"📋 {label}", f"r:copy:{report_id}"))
+    return _rows(buttons[:6], width=2)
+
+
+def _field_to_dict(field: Any) -> dict[str, Any]:
+    return {
+        "label": getattr(field, "label", ""),
+        "value": getattr(field, "value", None),
+        "copy_key": getattr(field, "copy_key", None),
+    }
 
 
 def copy_menu_keyboard(report: ReportContext) -> InlineKeyboardMarkup:
-    values: list[tuple[str, str, str]] = []
-    for section in report.sections:
-        for field in section.fields:
-            if field.copy_key and field.value not in (None, ""):
-                values.append((field.copy_key, field.label, str(field.value)))
-    rows = []
-    for copy_key, label, value in values[:7]:
-        rows.append([copy_button(f"Copy {label}", value, f"copy:{copy_key}")])
-    rows.append([cb_button("Copy Full Report", "copy:full"), cb_button("Copy Raw JSON", "copy:raw")])
-    rows.append([cb_button("⬅️ Back", "u:back")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    sections = [{"fields": [_field_to_dict(field) for field in section.fields]} for section in report.sections]
+    return _copy_menu_from_values(_copy_values_from_sections(sections))
 
 
 def copy_menu_keyboard_from_document(report_doc: dict | None) -> InlineKeyboardMarkup:
-    values: list[tuple[str, str, str]] = []
-    for section in (report_doc or {}).get("sections", []):
-        for field in section.get("fields", []):
-            if field.get("copy_key") and field.get("value") not in (None, ""):
-                values.append((field["copy_key"], field.get("label", field["copy_key"]), str(field["value"])))
+    return _copy_menu_from_values(_copy_values_from_sections((report_doc or {}).get("sections", [])))
+
+
+def _copy_menu_from_values(values: list[tuple[str, str, str]]) -> InlineKeyboardMarkup:
     rows = [[copy_button(f"Copy {label}", value, f"copy:{copy_key}")] for copy_key, label, value in values[:7]]
     rows.append([cb_button("Copy Full Report", "copy:full"), cb_button("Copy Raw JSON", "copy:raw")])
     rows.append([cb_button("⬅️ Back", "u:menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _copy_values_from_sections(sections: list[dict]) -> list[tuple[str, str, str]]:
+    label_by_key = {
+        "user_id": "User ID",
+        "chat_id": "Chat ID",
+        "message_id": "Msg ID",
+        "username": "Username",
+        "file_id": "File ID",
+        "link": "Link",
+        "mention": "Mention",
+        "reply_message_id": "Reply ID",
+    }
+    values: list[tuple[str, str, str]] = []
+    for section in sections:
+        for field in section.get("fields", []):
+            if not isinstance(field, dict):
+                continue
+            copy_key = field.get("copy_key")
+            value = field.get("value")
+            if copy_key and value not in (None, ""):
+                values.append((copy_key, label_by_key.get(copy_key, field.get("label", copy_key)), str(value)))
+    return values
 
 
 def premium_keyboard(plans: list[PremiumPlan]) -> InlineKeyboardMarkup:

@@ -48,14 +48,14 @@ class ReportEngine:
         generated = datetime.now(timezone.utc)
         fields = [
             ReportField("Telegram User ID", user_id, copy_key="user_id"),
-            ReportField("First name", _get(user, "first_name") or "Not provided by Telegram API"),
-            ReportField("Last name", _get(user, "last_name"), Availability.NOT_PROVIDED, "Not provided by Telegram API"),
+            ReportField("First name", _get(user, "first_name"), Availability.NOT_PROVIDED, "Not set by user."),
+            ReportField("Last name", _get(user, "last_name"), Availability.NOT_PROVIDED, "Not set by user."),
             ReportField("Username", f"@{username}" if username else None, Availability.NOT_PROVIDED, "User has no username", "username"),
-            ReportField("Full name", full_name or "Not provided by Telegram API"),
+            ReportField("Full name", full_name, Availability.NOT_PROVIDED, "Name is not available."),
             ReportField("Account type", "bot" if _get(user, "is_bot") else "user"),
             ReportField("Language code", _get(user, "language_code"), Availability.NOT_PROVIDED, "Not provided by Telegram API"),
-            ReportField("Premium status", bool(_get(user, "is_premium")), Availability.NOT_PROVIDED, "Not provided by Telegram API"),
-            ReportField("Verified/scam/fake/restricted flags", "Not available to Bot API", Availability.NOT_PROVIDED, "Not provided by Telegram API"),
+            ReportField("Premium status", bool(_get(user, "is_premium"))),
+            ReportField("Verified/scam/fake/restricted flags", None, Availability.NOT_PROVIDED, "Not available for normal Bot API user reports."),
             ReportField("Profile link", f"https://t.me/{username}" if username else None, Availability.NOT_PROVIDED, "User has no username", "link"),
             ReportField("Mention link", f"tg://user?id={user_id}" if user_id else None, copy_key="mention"),
             ReportField("First seen by bot", (stored_user or {}).get("first_seen_at"), Availability.NOT_PROVIDED, "Not seen before this report"),
@@ -91,6 +91,7 @@ class ReportEngine:
                     ReportField("Message ID", message_id, copy_key="message_id"),
                     ReportField("Sender ID", _get(sender, "id"), Availability.NOT_PROVIDED, "Sender not provided by Telegram API", "user_id"),
                     ReportField("Sender name", _full_name(sender) or _get(sender, "title"), Availability.NOT_PROVIDED, "Sender name unavailable"),
+                    ReportField("Sender username", f"@{_get(sender, 'username')}" if _get(sender, "username") else None, Availability.NOT_PROVIDED, "Sender has no public username", "username"),
                     ReportField("Chat ID", chat_id, copy_key="chat_id"),
                     ReportField("Chat title/type", self._chat_label(chat)),
                     ReportField("Message type", self._message_type(message)),
@@ -155,8 +156,8 @@ class ReportEngine:
         fields = [
             ReportField("Forwarded source type", origin_type),
             ReportField("Original user/channel/group", _full_name(sender_user) or _get(sender_chat, "title") or sender_name, Availability.HIDDEN, "Original source is hidden by Telegram privacy settings."),
-            ReportField("Source ID", _get(sender_user, "id") or _get(sender_chat, "id"), Availability.HIDDEN, "Hidden by Telegram privacy"),
-            ReportField("Source username", _get(sender_user, "username") or _get(sender_chat, "username"), Availability.NOT_PROVIDED, "Source has no public username or Telegram did not provide it"),
+            ReportField("Source ID", _get(sender_user, "id") or _get(sender_chat, "id"), Availability.HIDDEN, "Hidden by Telegram privacy", "chat_id"),
+            ReportField("Source username", self._username(_get(sender_user, "username") or _get(sender_chat, "username")), Availability.NOT_PROVIDED, "Source has no public username or Telegram did not provide it", "username"),
             ReportField("Forward date", date.isoformat() if hasattr(date, "isoformat") else date, Availability.NOT_PROVIDED, "Not provided by Telegram API"),
             ReportField("Forwarded channel post ID", post_id, Availability.NOT_PROVIDED, "Not provided by Telegram API"),
             ReportField("Source trace result", result),
@@ -229,6 +230,12 @@ class ReportEngine:
             if _get(message, name):
                 return name
         return "unsupported"
+
+    def _username(self, username: Any) -> str | None:
+        if not username:
+            return None
+        username = str(username)
+        return username if username.startswith("@") else f"@{username}"
 
     def _detect_kind(self, message: Any, forward_origin: Any, media: list[ReportField]) -> ReportKind:
         chat_type = _get(_get(message, "chat"), "type")
