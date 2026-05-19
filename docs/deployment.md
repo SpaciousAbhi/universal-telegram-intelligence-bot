@@ -15,7 +15,11 @@ Set only these required values in Heroku config:
 - `OWNER_ID`
 - `MONGO_URI`
 
-`MONGO_URL`, `MONGODB_URI`, or `MONGODB_URL` also work if you prefer one of those names.
+Accepted aliases:
+
+- Bot token: `BOT_TOKEN`, `TELEGRAM_BOT_TOKEN`, or `TOKEN`
+- Owner ID: `OWNER_ID`, `ADMIN_ID`, or `BOT_OWNER_ID`
+- Mongo URL: `MONGO_URI`, `MONGO_URL`, `MONGO_DB_URL`, `MONGO_DBURL`, `MONGODB_URI`, `MONGODB_URL`, or `MONGODBURL`
 
 Everything else has a code default:
 

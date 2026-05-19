@@ -37,6 +37,8 @@ MONGO_URI=your_mongodb_atlas_uri
 ```
 
 All other values have defaults. Support URL and log channel can be configured later from `/admin` -> `Settings`.
+
+Accepted aliases are also supported: `TELEGRAM_BOT_TOKEN` for the bot token, `ADMIN_ID` for owner ID, and `MONGO_DB_URL` / `MONGODB_URI` for MongoDB.
 4. Run:
 
 ```powershell
