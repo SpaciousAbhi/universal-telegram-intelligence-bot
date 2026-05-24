@@ -85,6 +85,9 @@ class MongoRepository:
         await self.db.users.update_one({"telegram_id": telegram_id}, update, upsert=True)
         return await self.db.users.find_one({"telegram_id": telegram_id}) or user
 
+    async def get_user(self, user_id: int) -> dict[str, Any] | None:
+        return await self.db.users.find_one({"telegram_id": user_id})
+
     async def increment_user_reports(self, telegram_id: int, report_type: str) -> None:
         await self.db.users.update_one(
             {"telegram_id": telegram_id},
